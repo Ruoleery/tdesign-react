@@ -19,17 +19,14 @@
 ## 开发
 
 ```bash
-git clone https://github.com/Tencent/tdesign-react.git
-cd tdesign-react
-git submodule init
-git submodule update
+git clone --recurse-submodules https://github.com/Tencent/tdesign-react.git
 
 # 开发预览
-cd ..
+cd tdesign-react
 npm i
 npm run dev
 
-# 打开浏览器访问 http://127.0.0.1:16000
+# 打开浏览器访问 http://localhost:15000
 ```
 
 更多指引请参考：

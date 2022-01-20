@@ -5,6 +5,7 @@ import debounce from 'lodash/debounce';
 import useUpdateEffect from '../../_util/useUpdateEffect';
 import useConfig from '../../_util/useConfig';
 import { DataType, TdPrimaryTableProps } from '../type';
+import { StyledProps } from '../../common';
 import Pagination, { PageInfo } from '../../pagination';
 import { useColumns } from '../hooks/useColumns';
 import { getScrollDirection, ScrollDirection } from '../util';
@@ -18,16 +19,30 @@ import { TableColGroup } from './TableColGroup';
 import TableFooter from './TableFooter';
 import Loading from '../../loading';
 
-export type BaseTableProps<RowData extends DataType = DataType> = TdPrimaryTableProps<RowData>;
 export interface ExpandInnerProps {
   handleExpandChange?: Function;
   renderExpandRow?: Function;
 }
+type DragFnType = (e?: React.DragEvent<HTMLTableRowElement>, rowIndex?: number, record?: DataType) => void;
+export interface DragSortInnerProps {
+  dragging?: boolean;
+  onDragStart?: DragFnType;
+  onDragOver?: DragFnType;
+  onDrop?: DragFnType;
+  onDragEnd?: DragFnType;
+}
+export interface BaseTableProps<RowData extends DataType = DataType>
+  extends TdPrimaryTableProps<RowData>,
+    StyledProps,
+    ExpandInnerProps,
+    DragSortInnerProps {}
 
 export default function BaseTable<D extends DataType = DataType>(props: BaseTableProps<D> & ExpandInnerProps) {
   const { classPrefix } = useConfig();
 
   const {
+    className,
+    style,
     bordered = false,
     stripe = false,
     hover = false,
@@ -283,16 +298,21 @@ export default function BaseTable<D extends DataType = DataType>(props: BaseTabl
 
   return (
     <div
-      className={classNames(`${classPrefix}-table`, {
-        [`${classPrefix}-table--striped`]: stripe,
-        [`${classPrefix}-table--bordered`]: bordered,
-        [`${classPrefix}-size-l`]: size === 'large',
-        [`${classPrefix}-size-s`]: size === 'small',
-        [`${classPrefix}-table--hoverable`]: hover,
-        [`${classPrefix}-table--align-${verticalAlign}`]: verticalAlign,
-        [`${classPrefix}-table__header--fixed`]: fixedHeader,
-        [`${classPrefix}-table__cell--fixed ${classPrefix}-table--has-fixed`]: hasFixedColumns,
-      })}
+      className={classNames(
+        `${classPrefix}-table`,
+        {
+          [`${classPrefix}-table--striped`]: stripe,
+          [`${classPrefix}-table--bordered`]: bordered,
+          [`${classPrefix}-size-l`]: size === 'large',
+          [`${classPrefix}-size-s`]: size === 'small',
+          [`${classPrefix}-table--hoverable`]: hover,
+          [`${classPrefix}-table--align-${verticalAlign}`]: verticalAlign,
+          [`${classPrefix}-table__header--fixed`]: fixedHeader,
+          [`${classPrefix}-table__cell--fixed ${classPrefix}-table--has-fixed`]: hasFixedColumns,
+        },
+        className,
+      )}
+      style={style}
     >
       <TableContextProvider value={table}>
         <Loading

@@ -1,20 +1,22 @@
 import path from 'path';
-
+import istanbul from 'vite-plugin-istanbul';
 import react from '@vitejs/plugin-react';
 import tdocPlugin from './plugin-tdoc';
 import { VitePWA } from 'vite-plugin-pwa';
 import replace from '@rollup/plugin-replace';
 import pwaConfig from './pwaConfig';
 
+const resolvePath = (r) => path.resolve(__dirname, r);
+
 export default {
-  base: process.env.NODE_ENV === 'production' ? '/react/' : './',
+  base: process.env.NODE_ENV === 'production' ? '/react/' : '/',
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, '../'),
-      '@docs': path.resolve(__dirname, './docs'),
-      '@components': path.resolve(__dirname, './src/components'),
-      '@common': path.resolve(__dirname, '../src/_common'),
-      'tdesign-react': path.resolve(__dirname, '../src'),
+      '@': resolvePath('../'),
+      '@docs': resolvePath('./docs'),
+      '@components': resolvePath('./src/components'),
+      '@common': resolvePath('../src/_common'),
+      'tdesign-react': resolvePath('../src'),
     },
   },
   build: {
@@ -35,5 +37,11 @@ export default {
     tdocPlugin(),
     VitePWA(pwaConfig),
     replace({ __DATE__: new Date().toISOString() }),
+    istanbul({
+      cwd: resolvePath('../'),
+      include: ['src/**/*'],
+      exclude: ['src/_common/**/*'],
+      extension: ['.js', '.ts', '.jsx', '.tsx'],
+    }),
   ],
 };

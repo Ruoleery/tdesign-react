@@ -170,10 +170,12 @@ const Cascader: React.FC<CascaderProps> = (props) => {
 
   return (
     <Popup
+      className={`${name}__popup`}
       placement="bottom-left"
       visible={visible}
       overlayClassName={`${name}__dropdown`}
       expandAnimation={true}
+      destroyOnClose={true}
       {...props?.popupProps}
       content={<Panel cascaderContext={cascaderContext} trigger={trigger} onChange={onChange} empty={empty} />}
     >

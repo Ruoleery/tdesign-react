@@ -38,12 +38,13 @@ const FormItem = forwardRef<HTMLDivElement, FormItemProps>((props, ref) => {
     labelWidth,
     labelAlign,
     initialData,
+    requiredMark,
     className,
     style: formItemStyle,
   } = props;
   const {
     colon,
-    requiredMark,
+    requiredMark: requiredMarkFromContext,
     layout,
     labelAlign: labelAlignFromContext,
     labelWidth: labelWidthFromContext,
@@ -51,6 +52,8 @@ const FormItem = forwardRef<HTMLDivElement, FormItemProps>((props, ref) => {
     resetType,
     rules: rulesFromContext,
     statusIcon: statusIconFromContext,
+    formItemsRef,
+    onFormItemValueChange,
   } = useFormContext();
 
   const [errorList, setErrorList] = useState([]);
@@ -60,12 +63,15 @@ const FormItem = forwardRef<HTMLDivElement, FormItemProps>((props, ref) => {
   const [needResetField, setNeedResetField] = useState(false);
   const [formValue, setFormValue] = useState(initialData);
 
+  const currentFormItemRef = useRef();
   const innerFormItemsRef = useRef([]);
   const shouldValidate = useRef(null);
+  const isMounted = useRef(false);
 
   const innerRules: FormRule[] = (rulesFromContext && rulesFromContext[name]) || rulesFromProp || [];
   const innerLabelWidth = isNil(labelWidth) ? labelWidthFromContext : labelWidth;
   const innerLabelAlign = isNil(labelAlign) ? labelAlignFromContext : labelAlign;
+  const innerRequiredMark = isNil(requiredMark) ? requiredMarkFromContext : requiredMark;
 
   const formItemClass = classNames(className, `${classPrefix}-form__item`, {
     [`${classPrefix}-form-item__${name}`]: name,
@@ -74,7 +80,7 @@ const FormItem = forwardRef<HTMLDivElement, FormItemProps>((props, ref) => {
   });
   const formItemLabelClass = classNames(`${classPrefix}-form__label`, {
     [`${classPrefix}-form__label--required`]:
-      requiredMark && innerRules.filter((rule: any) => rule.required).length > 0,
+      innerRequiredMark && innerRules.filter((rule: any) => rule.required).length > 0,
     [`${classPrefix}-form__label--colon`]: colon && label,
     [`${classPrefix}-form__label--top`]: innerLabelAlign === 'top' || !innerLabelWidth,
     [`${classPrefix}-form__label--left`]: innerLabelAlign === 'left' && innerLabelWidth,
@@ -184,19 +190,6 @@ const FormItem = forwardRef<HTMLDivElement, FormItemProps>((props, ref) => {
     filterRules.length && validate('blur');
   }
 
-  useEffect(() => {
-    // 首次渲染不触发校验 后续判断是否检验也通过此字段控制
-    if (!shouldValidate.current) {
-      shouldValidate.current = true;
-      return;
-    }
-
-    const filterRules = innerRules.filter((item) => (item.trigger || 'change') === 'change');
-
-    filterRules.length && validate('change');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formValue]);
-
   function getEmptyValue(): ValueType {
     const type = Object.prototype.toString.call(initialData);
     let emptyValue: ValueType = '';
@@ -248,8 +241,41 @@ const FormItem = forwardRef<HTMLDivElement, FormItemProps>((props, ref) => {
     }
   }
 
+  useEffect(() => {
+    // value change event
+    if (isMounted.current) {
+      if (!name) console.warn('FormItem prop name is required.');
+      name && onFormItemValueChange({ [name]: formValue });
+    }
+
+    // 首次渲染不触发校验 后续判断是否检验也通过此字段控制
+    if (!shouldValidate.current || !isMounted.current) {
+      isMounted.current = true;
+      shouldValidate.current = true;
+      return;
+    }
+
+    const filterRules = innerRules.filter((item) => (item.trigger || 'change') === 'change');
+
+    filterRules.length && validate('change');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formValue]);
+
+  useEffect(() => {
+    formItemsRef.current.push(currentFormItemRef);
+
+    return () => {
+      const index = formItemsRef.current.indexOf(currentFormItemRef);
+      if (index !== -1) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        formItemsRef.current?.splice(index, 1);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 暴露 ref 实例方法
-  useImperativeHandle(ref, (): any => ({
+  useImperativeHandle(currentFormItemRef, (): any => ({
     name,
     value: formValue,
     setValue: setFormValue,

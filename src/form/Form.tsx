@@ -1,12 +1,12 @@
-import React, { useRef, createRef, useImperativeHandle } from 'react';
+import React, { useRef, useImperativeHandle } from 'react';
 import classNames from 'classnames';
 import isEmpty from 'lodash/isEmpty';
-import isNil from 'lodash/isNil';
 import isFunction from 'lodash/isFunction';
 import flatten from 'lodash/flatten';
 import useConfig from '../_util/useConfig';
+import noop from '../_util/noop';
 import forwardRefWithStatics from '../_util/forwardRefWithStatics';
-import { TdFormProps, FormValidateResult } from './type';
+import { TdFormProps, FormInstance, Result } from './type';
 import { StyledProps } from '../common';
 import FormContext from './FormContext';
 import FormItem from './FormItem';
@@ -15,7 +15,9 @@ export interface FormProps extends TdFormProps, StyledProps {
   children?: React.ReactNode;
 }
 
-export type Result = FormValidateResult<FormData>;
+export interface FormRefInterface extends React.RefObject<unknown>, FormInstance {
+  currentElement: HTMLFormElement;
+}
 
 const Form = forwardRefWithStatics(
   (props: FormProps, ref) => {
@@ -36,15 +38,15 @@ const Form = forwardRefWithStatics(
       children,
       onSubmit,
       onReset,
+      onValuesChange = noop,
     } = props;
     const { classPrefix } = useConfig();
     const formClass = classNames(className, `${classPrefix}-form`, {
       [`${classPrefix}-form-inline`]: layout === 'inline',
     });
 
-    const formRef = useRef(null);
+    const formRef = useRef();
     const formItemsRef = useRef([]);
-    formItemsRef.current = React.Children.map(children, (_child, index) => (formItemsRef.current[index] = createRef()));
 
     const FORM_ITEM_CLASS_PREFIX = `${classPrefix}-form-item__`;
 
@@ -72,9 +74,10 @@ const Form = forwardRefWithStatics(
     }
     function resetHandler(e: React.FormEvent<HTMLFormElement>) {
       e?.preventDefault();
-      formItemsRef.current.forEach((formItemRef) => {
-        if (!isFunction(formItemRef.resetField)) return;
-        formItemRef.resetField();
+      formItemsRef.current.forEach(({ current: formItemRef }) => {
+        if (formItemRef && isFunction(formItemRef.resetField)) {
+          formItemRef.resetField();
+        }
       });
       onReset?.({ e });
     }
@@ -88,8 +91,11 @@ const Form = forwardRefWithStatics(
 
       const { fields, trigger = 'all' } = param || {};
       const list = formItemsRef.current
-        .filter((formItemRef) => isFunction(formItemRef.validate) && needValidate(formItemRef.name, fields))
-        .map((formItemRef) => formItemRef.validate(trigger));
+        .filter(
+          ({ current: formItemRef }) =>
+            formItemRef && isFunction(formItemRef.validate) && needValidate(formItemRef.name, fields),
+        )
+        .map(({ current: formItemRef }) => formItemRef.validate(trigger));
 
       return new Promise((resolve) => {
         Promise.all(flatten(list))
@@ -109,9 +115,9 @@ const Form = forwardRefWithStatics(
     // 对外方法，获取整个表单的值
     function getAllFieldsValue() {
       const fieldsValue = {};
-      formItemsRef.current.forEach((formItemRef) => {
-        // name 有可能为undefined。 值为空的时候，不返回（null或者undefined或者空字符串）
-        if (formItemRef?.name && !isNil(formItemRef.value)) {
+      formItemsRef.current.forEach(({ current: formItemRef }) => {
+        // 过滤无 name 的数据
+        if (formItemRef?.name) {
           fieldsValue[formItemRef.name] = formItemRef.value;
         }
       });
@@ -122,15 +128,18 @@ const Form = forwardRefWithStatics(
     // 对外方法，获取对应 formItem 的值
     function getFieldValue(name: string) {
       if (!name) return null;
-      const target = formItemsRef.current.find((formItemRef) => formItemRef.name === name);
+      const target = formItemsRef.current.find(({ current: formItemRef }) => formItemRef?.name === name);
       return target && target.value;
     }
 
     // 对外方法，设置对应 formItem 的值
     function setFieldsValue(fileds = {}) {
-      const formItemsMap = formItemsRef.current.reduce((acc, currItem) => {
-        const { name } = currItem;
-        return { ...acc, [name]: currItem };
+      const formItemsMap = formItemsRef.current.reduce((acc, { current: currItem }) => {
+        if (currItem?.name) {
+          const { name } = currItem;
+          return { ...acc, [name]: currItem };
+        }
+        return acc;
       }, {});
       Object.keys(fileds).forEach((key) => {
         formItemsMap[key]?.setValue(fileds[key]);
@@ -140,9 +149,12 @@ const Form = forwardRefWithStatics(
     // 对外方法，设置对应 formItem 的数据
     function setFields(fileds = []) {
       if (!Array.isArray(fileds)) throw new Error('setFields 参数需要 Array 类型');
-      const formItemsMap = formItemsRef.current.reduce((acc, currItem) => {
-        const { name } = currItem;
-        return { ...acc, [name]: currItem };
+      const formItemsMap = formItemsRef.current.reduce((acc, { current: currItem }) => {
+        if (currItem?.name) {
+          const { name } = currItem;
+          return { ...acc, [name]: currItem };
+        }
+        return acc;
       }, {});
       fileds.forEach((filed) => {
         const { name, value, status } = filed;
@@ -150,7 +162,8 @@ const Form = forwardRefWithStatics(
       });
     }
 
-    useImperativeHandle(ref, (): any => ({
+    useImperativeHandle(ref as FormRefInterface, () => ({
+      currentElement: formRef.current,
       submit: submitHandler,
       reset: resetHandler,
       getFieldValue,
@@ -159,6 +172,11 @@ const Form = forwardRefWithStatics(
       validate,
       getAllFieldsValue,
     }));
+
+    function onFormItemValueChange(changedValue: Record<string, unknown>) {
+      const allFileds = getAllFieldsValue();
+      onValuesChange(changedValue, allFileds);
+    }
 
     return (
       <FormContext.Provider
@@ -174,20 +192,12 @@ const Form = forwardRefWithStatics(
           scrollToFirstError,
           resetType,
           rules,
+          formItemsRef,
+          onFormItemValueChange,
         }}
       >
         <form className={formClass} style={style} onSubmit={submitHandler} onReset={resetHandler} ref={formRef}>
-          {React.Children.map(children, (child: React.ReactElement, index) => {
-            if (!child) return null;
-
-            const { cloneElement } = React;
-            return cloneElement(child, {
-              ref: (el: React.ReactElement) => {
-                if (!el) return;
-                formItemsRef.current[index] = el;
-              },
-            });
-          })}
+          {children}
         </form>
       </FormContext.Provider>
     );

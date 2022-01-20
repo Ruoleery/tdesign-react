@@ -2,9 +2,9 @@
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
-// import camelCase from 'camelcase';
+import camelCase from 'camelcase';
 
-// import testCoverage from '../test-coverage';
+import testCoverage from '../test-coverage';
 
 import { transformSync } from '@babel/core';
 
@@ -12,10 +12,10 @@ export default function mdToReact(options) {
   const mdSegment = customRender(options);
   const { demoDefsStr, demoCodesDefsStr } = options;
 
-  // let coverage = '';
-  // if (mdSegment.isComponent) {
-  //   coverage = testCoverage[camelCase(mdSegment.componentName)] || '0%';
-  // }
+  let unitCoverage = '';
+  if (mdSegment.isComponent) {
+    unitCoverage = testCoverage.unit[camelCase(mdSegment.componentName)] || '0%';
+  }
 
   const reactSource = `
     import React, { useEffect, useRef, useState } from 'react';\n
@@ -49,8 +49,10 @@ export default function mdToReact(options) {
 
         if (isComponent) {
           tdDocTabs.current.tabs = ${JSON.stringify(mdSegment.tdDocTabs)};
-        } else {
         }
+
+        document.title = \`${mdSegment.title} | TDesign\`;
+
         Prismjs.highlightAll();
 
         document.querySelector('td-doc-content').initAnchorHighlight();
@@ -88,9 +90,10 @@ export default function mdToReact(options) {
                 slot="doc-header"
                 ref={tdDocHeader}
                 spline="${mdSegment.spline}"
-                ${mdSegment.isComponent ? `component-name="${mdSegment.componentName}"` : ''}
                 platform="web"
-              ></td-doc-header>` : ''
+              >
+                ${mdSegment.isComponent ? `<td-doc-badge slot="badge" label="coverage" message="${unitCoverage}" />` : ''}
+              </td-doc-header>` : ''
           }
           {
             isComponent ? (
@@ -161,7 +164,7 @@ function customRender({ source, file, md }) {
 
   // fix table | render error
   demoMd = demoMd.replace(/`([^`]+)`/g, (str, codeStr) => {
-    codeStr = codeStr.replace(/\|/g, '\\|');
+    codeStr = codeStr.replace(/"/g, '\'');
     return `<td-code text="${codeStr}"></td-code>`;
   });
 
